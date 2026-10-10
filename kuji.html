@@ -1,0 +1,1334 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>オンラインくじアプリ</title>
+  <!-- アイコン表示用（FontAwesome） -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- QRコードカメラ読み取り用ライブラリ -->
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <!-- 紙吹雪アニメーション用ライブラリ -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.4/dist/confetti.browser.min.js"></script>
+</head>
+<body>
+
+  <!-- ログイン・新規登録モーダル画面 -->
+  <div class="modal-overlay" id="authModal" style="display: none; z-index: 200;">
+    <div class="modal-content" style="max-width: 360px; padding: 24px;">
+      <!-- タブ切り替え -->
+      <div style="display: flex; margin-bottom: 20px; border-bottom: 2px solid #e5e7eb;">
+        <button id="tabLogin" style="flex: 1; padding: 8px; border: none; background: none; font-weight: bold; font-size: 15px; border-bottom: 3px solid #3b82f6; color: #3b82f6; cursor: pointer;">ログイン</button>
+        <button id="tabRegister" style="flex: 1; padding: 8px; border: none; background: none; font-weight: bold; font-size: 15px; color: #6b7280; cursor: pointer;">新規登録</button>
+      </div>
+
+      <!-- フォームエリア -->
+      <form id="authForm">
+        <div style="margin-bottom: 12px; text-align: left;">
+          <label style="font-size: 12px; font-weight: bold; color: #374151;">ユーザー名</label>
+          <input type="text" id="authUserName" required placeholder="例: 田中治郎" style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px; margin-top: 4px; font-size: 14px;">
+        </div>
+        <div style="margin-bottom: 20px; text-align: left;">
+          <label style="font-size: 12px; font-weight: bold; color: #374151;">パスワード</label>
+          <input type="password" id="authPassword" required placeholder="••••••••" style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px; margin-top: 4px; font-size: 14px;">
+        </div>
+        <button type="submit" id="authSubmitBtn" class="btn-submit" style="width: 100%; padding: 12px; font-size: 15px; background-color: #3b82f6; border-radius: 8px; color: white; border: none; font-weight: bold; cursor: pointer;">ログイン</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="app-container">
+
+    <!-- 1. ヘッダー -->
+    <header class="header">
+      <div class="user-info">
+        <span class="user-icon"><i class="fa-solid fa-user"></i></span>
+        <span class="user-name" id="userName">ゲスト</span>
+        <button class="logout-btn" id="logoutBtn">ログアウト</button>
+      </div>
+      <button class="settings-btn" id="settingsBtn"><i class="fa-solid fa-gear"></i></button>
+    </header>
+
+    <!-- 2. メインアクション -->
+    <section class="main-actions">
+      <button class="action-card qr-btn" id="qrBtn">
+        <div class="card-icon"><i class="fa-solid fa-qrcode"></i></div>
+        <span class="card-label">QRコード読み取り</span>
+      </button>
+
+      <div class="sub-actions">
+        <button class="action-card daily-btn" id="dailyBtn">
+          <div class="card-icon"><i class="fa-solid fa-dharmachakra"></i></div>
+          <span class="card-label">毎日ログイン</span>
+        </button>
+
+        <button class="action-card confirm-btn" id="confirmBtn">
+          <div class="card-icon"><i class="fa-solid fa-ticket"></i></div>
+          <span class="card-label">当選くじ券確認</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- 3. ステータス表示 -->
+    <section class="status-section">
+      <div class="status-badge">
+        <span class="status-title">ポイント</span>
+        <span class="status-value" id="pointValue">0pt</span>
+      </div>
+      <div class="status-badge">
+        <span class="status-title">所持くじ枚数</span>
+        <span class="status-value" id="ticketCountValue">0枚</span>
+      </div>
+    </section>
+
+    <!-- 4. くじ一覧 -->
+    <section class="ticket-section">
+      <div class="ticket-header">
+        <h2>MY LOT TICKET</h2>
+        <label class="toggle-switch">
+          <input type="checkbox" id="filterSwitch">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="ticket-list" id="ticketList"></div>
+    </section>
+
+    <!-- 5. 当落選履歴 -->
+    <section class="ticket-section" style="margin-top: 16px;">
+      <div class="ticket-header">
+        <h2>当落選履歴</h2>
+      </div>
+      <div class="ticket-list" id="historyList"></div>
+
+      <!-- もっと見るボタン -->
+      <div style="text-align: center; margin-top: 10px;">
+        <button id="openFullHistoryBtn" style="width: 100%; padding: 10px; background-color: #ffffff; border: 1.5px solid #4b5563; border-radius: 12px; font-weight: bold; font-size: 13px; color: #374151; cursor: pointer;">
+          もっと見る（すべての履歴を確認）
+        </button>
+      </div>
+    </section>
+<!-- 毎日ログインボーナスモーダル（カウシェ風） -->
+<div class="modal-overlay" id="loginBonusModal">
+  <div class="modal-content" style="text-align: center; padding: 20px; max-width: 360px; background: #ffffff; border-radius: 20px;">
+   
+    <!-- ヘッダーバナー風タイトル -->
+    <div style="background: linear-gradient(135deg, #00b4d8, #0077b6); margin: -20px -20px 16px -20px; padding: 16px; border-radius: 20px 20px 0 0; color: white;">
+      <h3 style="font-size: 18px; font-weight: bold; margin-bottom: 2px;">🎁 毎日チャレンジ 🎁</h3>
+      <p style="font-size: 11px; opacity: 0.9;">毎日ログインしてリワードを受け取ろう！</p>
+    </div>
+
+    <!-- 1日目〜7日目のアイコン並びエリア -->
+    <div style="background: #f8fafc; border: 2px solid #e2e8f0; border-radius: 16px; padding: 14px 8px; margin-bottom: 12px;">
+     
+      <!-- 上段（1〜4日目） -->
+      <div style="display: flex; justify-content: space-around; margin-bottom: 12px;">
+        <div class="login-step" data-day="1" style="display: flex; flex-direction: column; align-items: center; width: 60px;">
+          <span style="background: #f97316; color: white; font-size: 10px; font-weight: bold; padding: 2px 8px; border-radius: 10px; margin-bottom: 4px;">1日目</span>
+          <div class="step-circle" style="width: 48px; height: 48px; border-radius: 50%; background: #e2e8f0; border: 3px solid #cbd5e1; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative;">
+            <i class="fa-solid fa-coins" style="font-size: 16px; color: #eab308;"></i>
+            <span style="font-size: 9px; font-weight: bold; color: #334155;">100pt</span>
+          </div>
+        </div>
+
+        <div class="login-step" data-day="2" style="display: flex; flex-direction: column; align-items: center; width: 60px;">
+          <span style="background: #f97316; color: white; font-size: 10px; font-weight: bold; padding: 2px 8px; border-radius: 10px; margin-bottom: 4px;">2日目</span>
+          <div class="step-circle" style="width: 48px; height: 48px; border-radius: 50%; background: #e2e8f0; border: 3px solid #cbd5e1; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative;">
+            <i class="fa-solid fa-coins" style="font-size: 16px; color: #eab308;"></i>
+            <span style="font-size: 9px; font-weight: bold; color: #334155;">200pt</span>
+          </div>
+        </div>
+
+        <div class="login-step" data-day="3" style="display: flex; flex-direction: column; align-items: center; width: 60px;">
+          <span style="background: #f97316; color: white; font-size: 10px; font-weight: bold; padding: 2px 8px; border-radius: 10px; margin-bottom: 4px;">3日目</span>
+          <div class="step-circle" style="width: 48px; height: 48px; border-radius: 50%; background: #e2e8f0; border: 3px solid #cbd5e1; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative;">
+            <i class="fa-solid fa-coins" style="font-size: 16px; color: #eab308;"></i>
+            <span style="font-size: 9px; font-weight: bold; color: #334155;">400pt</span>
+          </div>
+        </div>
+
+        <div class="login-step" data-day="4" style="display: flex; flex-direction: column; align-items: center; width: 60px;">
+          <span style="background: #f97316; color: white; font-size: 10px; font-weight: bold; padding: 2px 8px; border-radius: 10px; margin-bottom: 4px;">4日目</span>
+          <div class="step-circle" style="width: 48px; height: 48px; border-radius: 50%; background: #e2e8f0; border: 3px solid #cbd5e1; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative;">
+            <i class="fa-solid fa-coins" style="font-size: 16px; color: #eab308;"></i>
+            <span style="font-size: 9px; font-weight: bold; color: #334155;">500pt</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 下段（5〜7日目） -->
+      <div style="display: flex; justify-content: space-around;">
+        <div class="login-step" data-day="5" style="display: flex; flex-direction: column; align-items: center; width: 60px;">
+          <span style="background: #f97316; color: white; font-size: 10px; font-weight: bold; padding: 2px 8px; border-radius: 10px; margin-bottom: 4px;">5日目</span>
+          <div class="step-circle" style="width: 48px; height: 48px; border-radius: 50%; background: #e2e8f0; border: 3px solid #cbd5e1; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative;">
+            <i class="fa-solid fa-coins" style="font-size: 16px; color: #eab308;"></i>
+            <span style="font-size: 9px; font-weight: bold; color: #334155;">600pt</span>
+          </div>
+        </div>
+
+        <div class="login-step" data-day="6" style="display: flex; flex-direction: column; align-items: center; width: 60px;">
+          <span style="background: #f97316; color: white; font-size: 10px; font-weight: bold; padding: 2px 8px; border-radius: 10px; margin-bottom: 4px;">6日目</span>
+          <div class="step-circle" style="width: 48px; height: 48px; border-radius: 50%; background: #e2e8f0; border: 3px solid #cbd5e1; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative;">
+            <i class="fa-solid fa-coins" style="font-size: 16px; color: #eab308;"></i>
+            <span style="font-size: 9px; font-weight: bold; color: #334155;">800pt</span>
+          </div>
+        </div>
+
+        <div class="login-step" data-day="7" style="display: flex; flex-direction: column; align-items: center; width: 60px;">
+          <span style="background: #ef4444; color: white; font-size: 10px; font-weight: bold; padding: 2px 8px; border-radius: 10px; margin-bottom: 4px;">7日目</span>
+          <div class="step-circle" style="width: 48px; height: 48px; border-radius: 50%; background: #fef2f2; border: 3px solid #fca5a5; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative;">
+            <i class="fa-solid fa-crown" style="font-size: 16px; color: #ef4444;"></i>
+            <span style="font-size: 8px; font-weight: bold; color: #ef4444;">1000pt</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <p style="font-size: 10px; color: #64748b; margin-bottom: 14px;">※毎日連続して受け取らないと1日目に戻ります</p>
+
+    <!-- ボタン -->
+    <button id="claimLoginBonusBtn" style="width: 100%; padding: 12px; background-color: #22c55e; color: white; border: none; border-radius: 25px; font-weight: bold; font-size: 14px; cursor: pointer; margin-bottom: 8px; box-shadow: 0 4px 6px rgba(34, 197, 94, 0.2);">今日のボーナスを受け取る</button>
+    <button id="closeLoginModalBtn" style="width: 100%; padding: 8px; border-radius: 20px; font-weight: bold; background: #f1f5f9; color: #64748b; border: none; cursor: pointer; font-size: 12px;">閉じる</button>
+  </div>
+</div> 
+
+
+
+<!-- 設定モーダル画面 -->
+<div class="modal-overlay" id="settingsModal">
+  <div class="modal-content" style="text-align: left; padding: 24px; max-height: 80vh; overflow-y: auto;">
+    <h3 style="font-size: 18px; margin-bottom: 16px; text-align: center; color: #111827;">アカウント設定</h3>
+   
+    <!-- ユーザー名変更ボタン -->
+    <div style="margin-bottom: 12px;">
+      <button id="openUserNameModalBtn" style="width: 100%; padding: 10px; background-color: #3b82f6; color: white; border: none; border-radius: 8px; font-weight: bold; font-size: 13px; cursor: pointer;">ユーザー名変更</button>
+    </div>
+
+    <!-- パスワード変更ボタン -->
+    <div style="margin-bottom: 12px;">
+      <button id="openPasswordModalBtn" style="width: 100%; padding: 10px; background-color: #3b82f6; color: white; border: none; border-radius: 8px; font-weight: bold; font-size: 13px; cursor: pointer;">パスワード変更</button>
+    </div>
+
+    <!-- サウンド（演出）設定 -->
+    <div style="margin-bottom: 12px; border-top: 1px solid #e5e7eb; padding-top: 12px; display: flex; justify-content: space-between; align-items: center;">
+      <label style="font-size: 12px; font-weight: bold; color: #374151;">エフェクト</label>
+      <label class="toggle-switch">
+        <input type="checkbox" id="soundSwitch" checked>
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <!-- 履歴を全て削除 -->
+    <div style="margin-bottom: 12px; border-top: 1px solid #e5e7eb; padding-top: 12px;">
+      <button id="clearHistoryBtn" style="width: 100%; padding: 10px; background-color: #ef4444; color: white; border: none; border-radius: 8px; font-weight: bold; font-size: 13px; cursor: pointer;">履歴を全て削除</button>
+    </div>
+
+    <!-- データを初期化 -->
+    <div style="margin-bottom: 16px;">
+      <button id="resetAppBtn" style="width: 100%; padding: 10px; background-color: #ef4444; color: white; border: none; border-radius: 8px; font-weight: bold; font-size: 13px; cursor: pointer;">データを初期化</button>
+    </div>
+
+    <div style="margin-top: 20px; border-top: 1px solid #e5e7eb; padding-top: 16px;">
+      <button class="btn-cancel" id="closeSettingsModalBtn" style="width: 100%; padding: 10px; border-radius: 8px; font-weight: bold; background: #e5e7eb; color: #374151; border: none; cursor: pointer;">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<!-- ユーザー名変更用サブモーダル -->
+<div class="modal-overlay" id="userNameModal" style="z-index: 150;">
+  <div class="modal-content" style="text-align: left; padding: 24px;">
+    <h3 style="font-size: 16px; margin-bottom: 12px; text-align: center; color: #111827;">ユーザー名変更</h3>
+    <input type="text" id="newUserNameInput" placeholder="新しいユーザー名" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 8px; margin-bottom: 12px; font-size: 13px;">
+    <div style="display: flex; gap: 8px;">
+      <button id="changeUserNameBtn" style="flex: 1; padding: 10px; background-color: #3b82f6; color: white; border: none; border-radius: 8px; font-weight: bold; font-size: 12px; cursor: pointer;">変更完了</button>
+      <button id="closeUserNameModalBtn" class="btn-cancel" style="flex: 1; padding: 10px; border-radius: 8px; font-weight: bold; background: #e5e7eb; color: #374151; border: none; cursor: pointer;">キャンセル</button>
+    </div>
+  </div>
+</div>
+
+<!-- パスワード変更用サブモーダル -->
+<div class="modal-overlay" id="passwordModal" style="z-index: 150;">
+  <div class="modal-content" style="text-align: left; padding: 24px;">
+    <h3 style="font-size: 16px; margin-bottom: 12px; text-align: center; color: #111827;">パスワード変更</h3>
+    <input type="password" id="currentPasswordInput" placeholder="今のパスワード" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 8px; margin-bottom: 8px; font-size: 13px;">
+    <input type="password" id="newPasswordInput" placeholder="新しいパスワード" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 8px; margin-bottom: 8px; font-size: 13px;">
+    <input type="password" id="confirmPasswordInput" placeholder="新しいパスワード確認用" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 8px; margin-bottom: 12px; font-size: 13px;">
+    <div style="display: flex; gap: 8px;">
+      <button id="changePasswordBtn" style="flex: 1; padding: 10px; background-color: #3b82f6; color: white; border: none; border-radius: 8px; font-weight: bold; font-size: 12px; cursor: pointer;">変更完了</button>
+      <button id="closePasswordModalBtn" class="btn-cancel" style="flex: 1; padding: 10px; border-radius: 8px; font-weight: bold; background: #e5e7eb; color: #374151; border: none; cursor: pointer;">キャンセル</button>
+    </div>
+  </div>
+</div>
+
+  
+  <!-- 当選くじ券確認ページ -->
+  <div id="winningPage" class="app-container" style="display: none; position: fixed; top: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 480px; height: 100vh; z-index: 50; overflow-y: auto; background-color: #d1d5db;">
+    <header class="header">
+      <button class="logout-btn" id="backToHomeBtn" style="background-color: #4b5563;">＜ 戻る</button>
+      <span class="user-name">当選くじ券確認</span>
+      <div style="width: 50px;"></div>
+    </header>
+
+    <div id="winningList" class="ticket-list" style="margin-bottom: 80px;"></div>
+
+    <div class="bottom-nav" style="height: auto; padding: 10px; background-color: #ffffff; border-top: 1px solid #ccc;">
+      <button id="combineToggleBtn" style="width: 100%; padding: 12px; background-color: #3b82f6; color: white; border: none; border-radius: 12px; font-weight: bold; font-size: 15px; cursor: pointer;">
+        QRコードをまとめる
+      </button>
+    </div>
+  </div>
+
+  <!-- 全履歴表示ページ -->
+  <div id="fullHistoryPage" class="app-container" style="display: none; position: fixed; top: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 480px; height: 100vh; z-index: 60; overflow-y: auto; background-color: #d1d5db; padding-bottom: 40px;">
+    <header class="header">
+      <button class="logout-btn" id="backFromHistoryBtn" style="background-color: #4b5563;">＜ 戻る</button>
+      <span class="user-name">当落選履歴一覧</span>
+      <div style="width: 50px;"></div>
+    </header>
+
+    <!-- 絞り込みフィルター領域 -->
+    <section class="status-section" style="flex-direction: column; gap: 8px; background: white; padding: 12px; border-radius: 16px; margin-bottom: 12px;">
+      <div style="font-size: 12px; font-weight: bold; color: #374151;">絞り込み検索</div>
+      <div style="display: flex; gap: 6px;">
+        <select id="filterHistoryName" style="flex: 1; padding: 6px; border-radius: 8px; border: 1px solid #ccc; font-size: 12px;">
+          <option value="ALL">全てのくじ名</option>
+          <option value="SUMMER">ラッキーサマーくじ</option>
+          <option value="NEKO">ラッキーねこくじ</option>
+          <option value="LUCKY">ラッキー2026くじ</option>
+        </select>
+
+        <select id="filterHistoryStatus" style="flex: 1; padding: 6px; border-radius: 8px; border: 1px solid #ccc; font-size: 12px;">
+          <option value="ALL">全ステータス</option>
+          <option value="WIN">当選のみ</option>
+          <option value="LOSE">落選のみ</option>
+        </select>
+
+        <select id="filterHistoryYear" style="flex: 1; padding: 6px; border-radius: 8px; border: 1px solid #ccc; font-size: 12px;">
+          <option value="ALL">全年代</option>
+          <option value="2026">2026年</option>
+          <option value="2025">2025年</option>
+        </select>
+      </div>
+    </section>
+
+    <div id="fullHistoryList" class="ticket-list"></div>
+  </div>
+
+  <!-- 抽選モーダル -->
+  <div class="modal-overlay" id="lotteryModal">
+    <div class="modal-content" style="padding: 24px;">
+      <div id="lotterySpinning">
+        <div class="spinner"></div>
+        <h3 style="margin-top: 16px; font-size: 18px; color: #1f2937;">抽選中...</h3>
+        <p style="font-size: 13px; color: #6b7280; margin-top: 4px;">結果を確認しています</p>
+      </div>
+
+      <div id="lotteryResult" style="display: none;">
+        <div id="resultIcon" style="font-size: 60px; margin-bottom: 10px;">🎉</div>
+        <h3 id="resultTitle" style="font-size: 22px; font-weight: bold;">当選！！</h3>
+        <p id="resultSub" style="font-size: 14px; color: #4b5563; margin: 8px 0 20px 0;">500円 当選しました！</p>
+        <button class="btn-submit" id="closeResultBtn" style="width: 100%; padding: 12px; font-size: 15px; background-color: #ef4444; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- QRコード表示モーダル -->
+  <div class="modal-overlay" id="qrDisplayModal">
+    <div class="modal-content">
+      <h3 id="qrModalTitle">当選QRコード</h3>
+      <p id="qrModalSub">店舗レジ等でこちらを提示してください</p>
+  
+      <div style="margin: 15px 0; padding: 10px; background: white; border: 1px solid #ddd; border-radius: 12px; display: inline-block;">
+        <img id="qrImage" src="" alt="QRコード" style="width: 180px; height: 180px;">
+        <div id="qrCodeText" style="margin-top: 8px; font-weight: bold; font-size: 16px; color: #111827;"></div>
+      </div>
+
+      <div class="modal-buttons">
+        <button class="btn-submit" id="useCompleteBtn" style="background-color: #22c55e; color: white;">使用完了（削除する）</button>
+        <button class="btn-cancel" id="closeQrModalBtn">閉じる</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- カメラ読み取りモーダル -->
+  <div class="modal-overlay" id="qrModal">
+    <div class="modal-content" style="padding: 24px 20px; max-width: 360px;">
+      <h3 style="font-size: 18px; margin-bottom: 8px; color: #111827;">QRコードをスキャン</h3>
+      <p style="font-size: 13px; color: #4b5563; margin-bottom: 16px; line-height: 1.4;">枠内に店舗のQRコードをかざしてください</p>
+     
+      <!-- カメラ映す領域（上下左右のゆとりを確保） -->
+      <div id="reader" style="width: 100%; border-radius: 12px; overflow: hidden; margin-bottom: 16px; background-color: #000;"></div>
+     
+      <div class="modal-buttons">
+        <button class="btn-cancel" id="closeModalBtn" style="padding: 12px; font-weight: bold; border-radius: 8px;">閉じる</button>
+      </div>
+    </div>
+  </div> 
+
+
+
+  <!-- スタイル設定 -->
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background-color: #f0f2f5; display: flex; justify-content: center; }
+    .app-container { width: 100%; max-width: 480px; background-color: #d1d5db; min-height: 100vh; padding: 12px; padding-bottom: 90px; }
+    .header { display: flex; justify-content: space-between; align-items: center; background-color: #e5e7eb; padding: 8px 12px; border-radius: 20px; margin-bottom: 12px; }
+    .user-info { display: flex; align-items: center; gap: 8px; }
+    .user-icon { background-color: #3b82f6; color: white; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+    .user-name { font-weight: bold; font-size: 15px; }
+    .logout-btn { background-color: #1d4ed8; color: white; border: none; padding: 4px 12px; border-radius: 12px; font-size: 12px; cursor: pointer; }
+    .settings-btn { background: none; border: none; font-size: 18px; color: #4b5563; cursor: pointer; }
+    .main-actions { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
+    .action-card { border: none; border-radius: 16px; padding: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: transform 0.1s; }
+    .action-card:active { transform: scale(0.98); }
+    .qr-btn { background-color: #ff4d4d; color: white; height: 110px; }
+    .qr-btn .card-icon { font-size: 40px; margin-bottom: 4px; }
+    .qr-btn .card-label { font-weight: bold; font-size: 14px; }
+    .sub-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .daily-btn { background-color: #3b82f6; color: white; height: 100px; }
+    .confirm-btn { background-color: #fde047; color: #111827; height: 100px; }
+    .sub-actions .card-icon { font-size: 32px; margin-bottom: 4px; }
+    .sub-actions .card-label { font-weight: bold; font-size: 13px; }
+    .status-section { display: flex; gap: 10px; margin-bottom: 12px; }
+    .status-badge { flex: 1; background-color: white; border: 1.5px solid #111827; border-radius: 20px; padding: 6px 12px; display: flex; justify-content: space-between; align-items: center; }
+    .status-title { font-size: 12px; font-weight: bold; }
+    .status-value { font-size: 13px; font-weight: bold; }
+    .ticket-section { margin-bottom: 12px; }
+    .ticket-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding: 0 4px; }
+    .ticket-header h2 { font-size: 14px; font-weight: bold; letter-spacing: 0.5px; }
+    .toggle-switch { position: relative; display: inline-block; width: 44px; height: 22px; }
+    .toggle-switch input { opacity: 0; width: 0; height: 0; }
+    .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #9ca3af; transition: .3s; border-radius: 22px; }
+    .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 3px; bottom: 3px; background-color: white; transition: .3s; border-radius: 50%; }
+    input:checked + .slider { background-color: #3b82f6; }
+    input:checked + .slider:before { transform: translateX(22px); }
+    .ticket-list { display: flex; flex-direction: column; gap: 8px; }
+    .ticket-card { background-color: #e5e7eb; border-radius: 12px; padding: 8px 12px; display: flex; gap: 8px; min-height: 64px; align-items: center; justify-content: space-between; }
+    .ticket-left { flex: 1; display: flex; flex-direction: column; justify-content: space-between; }
+    .ticket-name { font-size: 13px; font-weight: bold; }
+   
+    .btn-delete {
+      background-color: #60a5fa;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 6px 0;
+      font-weight: bold;
+      font-size: 12px;
+      cursor: pointer;
+      width: 100%;
+      margin-top: 4px;
+      text-align: center;
+    }
+   
+    .ticket-right { flex: 1.2; display: flex; flex-direction: column; justify-content: space-between; }
+    .ticket-info { font-size: 10px; color: #111827; line-height: 1.3; margin-bottom: 4px; }
+    .btn-check { border: none; border-radius: 8px; padding: 6px 0; font-weight: bold; font-size: 12px; cursor: pointer; width: 100%; color: white; text-align: center; }
+    .btn-check.active { background-color: #ef4444; }
+    .btn-check.disabled { background-color: #6b7280; }
+    .empty-msg { text-align: center; padding: 20px; font-size: 13px; color: #4b5563; background: #e5e7eb; border-radius: 12px; }
+    .bottom-nav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 480px; background-color: #fef08a; height: 54px; display: flex; justify-content: space-around; align-items: center; z-index: 1000; }
+    .nav-item { color: #ea580c; font-size: 22px; text-decoration: none; display: flex; justify-content: center; align-items: center; flex: 1; }
+    .nav-home { position: relative; top: -12px; }
+    .home-circle { width: 62px; height: 62px; background-color: #fef08a; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 28px; color: #d97706; box-shadow: 0 -2px 6px rgba(0, 0, 0, 0.08); }
+    .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); justify-content: center; align-items: center; z-index: 100; }
+    .modal-content { background: white; padding: 20px; border-radius: 16px; width: 90%; max-width: 380px; text-align: center; }
+    .modal-buttons { display: flex; gap: 10px; }
+    .modal-buttons button { flex: 1; padding: 10px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; }
+    .btn-cancel { background: #e5e7eb; color: #374151; }
+    .spinner { width: 50px; height: 50px; border: 5px solid #f3f3f3; border-top: 5px solid #3b82f6; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+  
+    /* 当落選バッジ */
+    .status-tag { display: inline-flex; align-items: center; justify-content: center; padding: 6px 12px; border-radius: 8px; font-size: 13px; font-weight: bold; white-space: nowrap; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1); }
+    .status-tag.win { background-color: #ef4444; color: #ffffff; }
+    .status-tag.lose { background-color: #6b7280; color: #ffffff; }
+
+    #winningList .btn-check {
+      white-space: nowrap;
+      min-width: 70px;
+      text-align: center;
+    }
+  </style>
+
+  <!-- JavaScript領域 -->
+  <script>
+    // 許可コードと金額設定
+    const ALLOWED_QR_CODES = {
+      "SUMMER": { name: "ラッキーサマーくじ", date: "2026/1/10/12:30", active: true, winningPrizes: [{ number: "001", amount: 10000 }, { number: "005", amount: 5000 }, { number: "123", amount: 500 }] },
+      "NEKO":   { name: "ラッキーねこくじ",   date: "2026/11/11/12:30", active: true, winningPrizes: [{ number: "777", amount: 10000 }, { number: "456", amount: 500 }] },
+      "LUCKY":  { name: "ラッキー2026くじ",   date: "2026/12/31/12:30", active: true, winningPrizes: [{ number: "999", amount: 3000 }] }
+    };
+
+    let currentUser = JSON.parse(localStorage.getItem('myAppCurrentUser') || 'null');
+    let tickets = [];
+    let winningTickets = [];
+    let historyTickets = [];
+    let userPoints = 0;
+
+    // DOM要素
+    const authModal = document.getElementById('authModal');
+    const authForm = document.getElementById('authForm');
+    const authUserNameInput = document.getElementById('authUserName');
+    const authPasswordInput = document.getElementById('authPassword');
+    const authSubmitBtn = document.getElementById('authSubmitBtn');
+    const tabLogin = document.getElementById('tabLogin');
+    const tabRegister = document.getElementById('tabRegister');
+    const userNameEl = document.getElementById('userName');
+    const logoutBtn = document.getElementById('logoutBtn');
+    const ticketListEl = document.getElementById('ticketList');
+    const historyListEl = document.getElementById('historyList');
+    const ticketCountEl = document.getElementById('ticketCountValue');
+    const pointValueEl = document.getElementById('pointValue');
+    const qrBtn = document.getElementById('qrBtn');
+    const qrModal = document.getElementById('qrModal');
+    const closeModalBtn = document.getElementById('closeModalBtn');
+    const dailyBtn = document.getElementById('dailyBtn');
+    const confirmBtn = document.getElementById('confirmBtn');
+    const filterSwitch = document.getElementById('filterSwitch');
+
+    // 全履歴機能用 DOM要素
+    const openFullHistoryBtn = document.getElementById('openFullHistoryBtn');
+    const fullHistoryPage = document.getElementById('fullHistoryPage');
+    const backFromHistoryBtn = document.getElementById('backFromHistoryBtn');
+    const fullHistoryList = document.getElementById('fullHistoryList');
+    const filterHistoryName = document.getElementById('filterHistoryName');
+    const filterHistoryStatus = document.getElementById('filterHistoryStatus');
+    const filterHistoryYear = document.getElementById('filterHistoryYear');
+
+    let html5QrcodeScanner = null;
+    let isRegisterMode = false;
+
+    // ユーザー別データの読み込み処理（復元）
+    function loadUserData() {
+      if (!currentUser) {
+        tickets = [];
+        winningTickets = [];
+        historyTickets = [];
+        userPoints = 0;
+        return;
+      }
+     
+      const userKey = currentUser.name;
+      tickets = JSON.parse(localStorage.getItem(`myKujiTickets_${userKey}`) || '[]');
+      winningTickets = JSON.parse(localStorage.getItem(`myWinningTickets_${userKey}`) || '[]');
+      historyTickets = JSON.parse(localStorage.getItem(`myHistoryTickets_${userKey}`) || '[]');
+      userPoints = parseInt(localStorage.getItem(`myKujiPoints_${userKey}`) || '0');
+    }
+
+    // 認証チェック
+    function checkAuth() {
+      if (!currentUser) {
+        authModal.style.display = 'flex';
+      } else {
+        authModal.style.display = 'none';
+        if (userNameEl) userNameEl.textContent = currentUser.name;
+        loadUserData(); // リロード時にもデータを確実に復元
+      }
+    }
+
+    // タブ切り替え
+    tabLogin.addEventListener('click', () => {
+      isRegisterMode = false;
+      tabLogin.style.color = '#3b82f6'; tabLogin.style.borderBottom = '3px solid #3b82f6';
+      tabRegister.style.color = '#6b7280'; tabRegister.style.borderBottom = 'none';
+      authSubmitBtn.textContent = 'ログイン'; authSubmitBtn.style.backgroundColor = '#3b82f6';
+    });
+
+    tabRegister.addEventListener('click', () => {
+      isRegisterMode = true;
+      tabRegister.style.color = '#3b82f6'; tabRegister.style.borderBottom = '3px solid #3b82f6';
+      tabLogin.style.color = '#6b7280'; tabLogin.style.borderBottom = 'none';
+      authSubmitBtn.textContent = '新規アカウント作成'; authSubmitBtn.style.backgroundColor = '#22c55e';
+    });
+
+    // フォーム送信
+    authForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const inputName = authUserNameInput.value.trim();
+      const inputPass = authPasswordInput.value.trim();
+      if (!inputName || !inputPass) return;
+
+      let users = JSON.parse(localStorage.getItem('myAppUsers') || '[]');
+
+      if (isRegisterMode) {
+        if (users.some(u => u.name === inputName)) {
+          alert("❌ このユーザー名は既に登録されています。"); return;
+        }
+        const newUser = { name: inputName, pass: inputPass };
+        users.push(newUser);
+        localStorage.setItem('myAppUsers', JSON.stringify(users));
+        currentUser = newUser;
+      } else {
+        const userMatch = users.find(u => u.name === inputName && u.pass === inputPass);
+        if (!userMatch) {
+          alert("❌ ユーザー名またはパスワードが正しくありません。"); return;
+        }
+        currentUser = userMatch;
+      }
+
+      localStorage.setItem('myAppCurrentUser', JSON.stringify(currentUser));
+      authUserNameInput.value = ''; authPasswordInput.value = '';
+      checkAuth();
+      renderTickets();
+    });
+
+    logoutBtn.addEventListener('click', () => {
+      if (confirm("ログアウトしますか？")) {
+        currentUser = null;
+        localStorage.removeItem('myAppCurrentUser');
+        checkAuth();
+        renderTickets();
+      }
+    });
+
+    function getTicketAmount(ticket) {
+      if (ticket.amount) return ticket.amount;
+      const prefix = ticket.code.split('_')[0];
+      const qrData = ALLOWED_QR_CODES[prefix];
+      if (qrData && qrData.winningPrizes) {
+        const prize = qrData.winningPrizes.find(p => p.number === ticket.number);
+        if (prize) return prize.amount;
+      }
+      return 500;
+    }
+
+    // MY LOT TICKET 一覧の描画・ユーザー別保存処理
+    function renderTickets() {
+      ticketListEl.innerHTML = '';
+
+      const isFilterOn = filterSwitch.checked;
+      let displayTickets = [];
+
+      if (isFilterOn) {
+        displayTickets = tickets.filter(t => t.active === true);
+      } else {
+        displayTickets = [...tickets].sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+      }
+
+      ticketCountEl.textContent = `${tickets.length}枚`;
+      pointValueEl.textContent = `${userPoints}pt`;
+
+      if (displayTickets.length === 0) {
+        const emptyMsgText = isFilterOn
+          ? '結果を確認できるくじ券はありません。'
+          : 'くじ券がありません。QRコードを読み込んで追加してください！';
+        ticketListEl.innerHTML = `<div class="empty-msg">${emptyMsgText}</div>`;
+      } else {
+        displayTickets.forEach((ticket) => {
+          const card = document.createElement('div');
+          card.className = 'ticket-card';
+          card.innerHTML = `
+            <div class="ticket-left">
+              <div class="ticket-name">${ticket.name}</div>
+              <button class="btn-delete" onclick="deleteTicket(${ticket.id})">削除</button>
+            </div>
+            <div class="ticket-right">
+              <div class="ticket-info">
+                <div>くじ券番号:${ticket.number}</div>
+                <div>結果発表日時:${ticket.date}</div>
+              </div>
+              <button class="btn-check ${ticket.active ? 'active' : 'disabled'}" onclick="startLotteryAnimation(${ticket.id})">
+                結果を確認
+              </button>
+            </div>
+          `;
+          ticketListEl.appendChild(card);
+        });
+      }
+
+      renderHistory();
+
+      // ユーザーアカウント別にデータを保存
+      if (currentUser) {
+        const userKey = currentUser.name;
+        localStorage.setItem(`myKujiTickets_${userKey}`, JSON.stringify(tickets));
+        localStorage.setItem(`myWinningTickets_${userKey}`, JSON.stringify(winningTickets));
+        localStorage.setItem(`myHistoryTickets_${userKey}`, JSON.stringify(historyTickets));
+        localStorage.setItem(`myKujiPoints_${userKey}`, userPoints.toString());
+      }
+    }
+
+    // トグルスイッチイベント
+    filterSwitch.addEventListener('change', renderTickets);
+
+    // ホーム画面側の履歴描画（最新5件のみ表示）
+    function renderHistory() {
+      historyListEl.innerHTML = '';
+      if (historyTickets.length === 0) {
+        historyListEl.innerHTML = '<div class="empty-msg">まだ抽選履歴はありません</div>';
+        openFullHistoryBtn.style.display = 'none';
+        return;
+      }
+
+      openFullHistoryBtn.style.display = 'block';
+
+      // 最新5件を抽出
+      const recentHistory = historyTickets.slice(0, 5);
+
+      recentHistory.forEach((h) => {
+        const card = document.createElement('div');
+        card.className = 'ticket-card';
+        const isWin = h.status === '当選';
+        const badgeClass = isWin ? 'win' : 'lose';
+        const badgeText = isWin ? `当選 ${h.amount}円` : '落選';
+
+        card.innerHTML = `
+          <div class="ticket-left">
+            <div class="ticket-name">${h.name}</div>
+            <div style="font-size: 13px; color: #4b5563;">くじ番号: ${h.number}</div>
+          </div>
+          <div class="ticket-right" style="flex: 0; display: flex; align-items: center; justify-content: flex-end;">
+            <span class="status-tag ${badgeClass}">${badgeText}</span>
+          </div>
+        `;
+        historyListEl.appendChild(card);
+      });
+    }
+
+    // 全履歴ページの描画（フィルタリング対応）
+    function renderFullHistory() {
+      fullHistoryList.innerHTML = '';
+
+      const nameVal = filterHistoryName.value;
+      const statusVal = filterHistoryStatus.value;
+      const yearVal = filterHistoryYear.value;
+
+      const filtered = historyTickets.filter((h) => {
+        if (nameVal !== 'ALL') {
+          const targetPrefix = Object.keys(ALLOWED_QR_CODES).find(key => ALLOWED_QR_CODES[key].name === h.name);
+          if (targetPrefix !== nameVal) return false;
+        }
+        if (statusVal === 'WIN' && h.status !== '当選') return false;
+        if (statusVal === 'LOSE' && h.status !== '落選') return false;
+       
+        if (yearVal !== 'ALL') {
+          const hYear = h.date ? h.date.split('/')[0] : '2026';
+          if (hYear !== yearVal) return false;
+        }
+
+        return true;
+      });
+
+      if (filtered.length === 0) {
+        fullHistoryList.innerHTML = '<div class="empty-msg">条件に該当する履歴はありません。</div>';
+        return;
+      }
+
+      filtered.forEach((h) => {
+        const card = document.createElement('div');
+        card.className = 'ticket-card';
+        const isWin = h.status === '当選';
+        const badgeClass = isWin ? 'win' : 'lose';
+        const badgeText = isWin ? `当選 ${h.amount}円` : '落選';
+
+        card.innerHTML = `
+          <div class="ticket-left">
+            <div class="ticket-name">${h.name}</div>
+            <div style="font-size: 13px; color: #4b5563;">くじ番号: ${h.number}</div>
+          </div>
+          <div class="ticket-right" style="flex: 0; display: flex; align-items: center; justify-content: flex-end;">
+            <span class="status-tag ${badgeClass}">${badgeText}</span>
+          </div>
+        `;
+        fullHistoryList.appendChild(card);
+      });
+    }
+
+    // 全履歴画面を開く・閉じるイベント
+    openFullHistoryBtn.addEventListener('click', () => {
+      renderFullHistory();
+      fullHistoryPage.style.display = 'block';
+    });
+
+    backFromHistoryBtn.addEventListener('click', () => {
+      fullHistoryPage.style.display = 'none';
+    });
+
+    // フィルター変更のリスナー
+    filterHistoryName.addEventListener('change', renderFullHistory);
+    filterHistoryStatus.addEventListener('change', renderFullHistory);
+    filterHistoryYear.addEventListener('change', renderFullHistory);
+
+    window.deleteTicket = function(id) {
+      if (confirm('このくじ券を削除してもよろしいですか？')) {
+        tickets = tickets.filter(t => t.id !== id);
+        renderTickets();
+      }
+    };
+
+    let currentProcessingTicket = null;
+    let currentIsWin = false;
+
+    window.startLotteryAnimation = function(id) {
+      const ticket = tickets.find(t => t.id === id);
+      if (!ticket) return;
+
+      if (!ticket.active) {
+        alert(`くじ番号: ${ticket.number}\n結果発表日時までお待ちください。`);
+        return;
+      }
+
+      currentProcessingTicket = ticket;
+      const prefix = ticket.code.split('_')[0];
+      const qrData = ALLOWED_QR_CODES[prefix];
+    
+      let prizeMatch = null;
+      if (qrData && qrData.winningPrizes) {
+        prizeMatch = qrData.winningPrizes.find(p => p.number === ticket.number);
+      }
+
+      currentIsWin = !!prizeMatch;
+      if (currentIsWin) {
+        currentProcessingTicket.amount = prizeMatch.amount;
+      }
+
+      document.getElementById('lotterySpinning').style.display = 'block';
+      document.getElementById('lotteryResult').style.display = 'none';
+      document.getElementById('lotteryModal').style.display = 'flex';
+
+      setTimeout(() => { showLotteryResult(); }, 1500);
+    };
+
+    function showLotteryResult() {
+      document.getElementById('lotterySpinning').style.display = 'none';
+      document.getElementById('lotteryResult').style.display = 'block';
+
+      const iconEl = document.getElementById('resultIcon');
+      const titleEl = document.getElementById('resultTitle');
+      const subEl = document.getElementById('resultSub');
+      const amount = getTicketAmount(currentProcessingTicket);
+
+      if (currentIsWin) {
+        iconEl.textContent = '🎉'; titleEl.textContent = '当選！！'; titleEl.style.color = '#ef4444';
+        subEl.textContent = `おめでとうございます！ ${currentProcessingTicket.name} (${amount}円) 当選です！`;
+        confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+      } else {
+        iconEl.textContent = '😭'; titleEl.textContent = '落選...'; titleEl.style.color = '#6b7280';
+        subEl.textContent = `残念！ 今回はハズレでした。また挑戦してください！`;
+      }
+    }
+
+    document.getElementById('closeResultBtn').addEventListener('click', () => {
+      document.getElementById('lotteryModal').style.display = 'none';
+      if (!currentProcessingTicket) return;
+
+      const amount = getTicketAmount(currentProcessingTicket);
+      tickets = tickets.filter(t => t.id !== currentProcessingTicket.id);
+
+      historyTickets.unshift({
+        id: Date.now(),
+        name: currentProcessingTicket.name,
+        number: currentProcessingTicket.number,
+        status: currentIsWin ? '当選' : '落選',
+        amount: currentIsWin ? amount : 0,
+        date: currentProcessingTicket.date
+      });
+
+      if (currentIsWin) {
+        winningTickets.unshift(currentProcessingTicket);
+        renderTickets();
+        isCombineMode = false; selectedTicketIds = [];
+        renderWinningPage();
+        winningPage.style.display = 'block';
+      } else {
+        renderTickets();
+      }
+      currentProcessingTicket = null;
+    });
+
+    function addTicketFromCode(inputCode) {
+    let code = inputCode.trim();
+    if (code.includes('code=')) code = code.split('code=')[1].split('&')[0];
+    code = code.toUpperCase();
+
+    const parts = code.split('_');
+    if (parts.length < 3) {
+      alert("❌ 無効なQRコード形式です。");
+      return false;
+    }
+
+    let currentPrefix = null;
+    let addedCount = 0;
+    let errorMessages = [];
+
+    let i = 0;
+    while (i < parts.length) {
+      let token = parts[i];
+
+      // トークンが有効なプレフィックスの場合
+      if (ALLOWED_QR_CODES[token]) {
+        currentPrefix = token;
+        i++;
+        if (i >= parts.length) break;
+        token = parts[i];
+      }
+
+      if (!currentPrefix) {
+        alert("❌ 無効なQRコード形式です。");
+        return false;
+      }
+
+      const numStr = token;
+      const numInt = parseInt(numStr, 10);
+      const isValidNumber = /^\d{3}$/.test(numStr) && numInt >= 1 && numInt <= 999;
+
+      if (!isValidNumber) {
+        // もし数字ではなく、次のプレフィックスだった場合はプレフィックスの切り替えとみなす
+        if (ALLOWED_QR_CODES[token]) {
+          currentPrefix = token;
+          i++;
+          continue;
+        }
+        errorMessages.push(`無効な番号: ${numStr}`);
+        i++;
+        continue;
+      }
+
+      const fullSubCode = `${currentPrefix}_${numStr}`;
+
+      if (tickets.some(t => t.code === fullSubCode) || winningTickets.some(t => t.code === fullSubCode)) {
+        errorMessages.push(`番号 ${numStr} は既に登録されています`);
+        i++;
+        continue;
+      }
+
+      const qrData = ALLOWED_QR_CODES[currentPrefix];
+      const newTicket = {
+        id: Date.now() + Math.random(),
+        code: fullSubCode,
+        name: qrData.name,
+        number: numStr,
+        date: qrData.date,
+        active: qrData.active
+      };
+
+      tickets.unshift(newTicket);
+      addedCount++;
+      i++;
+    }
+
+    if (addedCount > 0) {
+      alert(`🎉 ${addedCount}枚のくじ券を追加しました！`);
+      renderTickets();
+      return true;
+    } else {
+      alert(`⚠️ 追加できませんでした。\n${errorMessages.join('\n')}`);
+      return false;
+    }
+  } 
+
+
+    function startCamera() {
+      qrModal.style.display = 'flex';
+      if (!html5QrcodeScanner) html5QrcodeScanner = new Html5Qrcode("reader");
+      html5QrcodeScanner.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 220, height: 220 } },
+        (decodedText) => { stopCamera(); addTicketFromCode(decodedText); },
+        (errorMessage) => {}
+      ).catch((err) => { alert("カメラの起動に失敗しました。"); stopCamera(); });
+    }
+
+    function stopCamera() {
+      if (html5QrcodeScanner) {
+        html5QrcodeScanner.stop().then(() => { qrModal.style.display = 'none'; }).catch(() => { qrModal.style.display = 'none'; });
+      } else { qrModal.style.display = 'none'; }
+    }
+
+     qrBtn.addEventListener('click', startCamera);
+    closeModalBtn.addEventListener('click', stopCamera);
+   
+    // 毎日ログインボタンを押したときにS字すごろくモーダルを開く
+    dailyBtn.addEventListener('click', () => {
+      checkAndOpenLoginBonus(true);
+    }); 
+    // 当選確認・まとめ処理
+    let isCombineMode = false;
+    let selectedTicketIds = [];
+    let currentDisplayTicketIds = [];
+
+    const winningPage = document.getElementById('winningPage');
+    const winningList = document.getElementById('winningList');
+    const backToHomeBtn = document.getElementById('backToHomeBtn');
+    const combineToggleBtn = document.getElementById('combineToggleBtn');
+    const qrDisplayModal = document.getElementById('qrDisplayModal');
+    const qrImage = document.getElementById('qrImage');
+    const qrCodeText = document.getElementById('qrCodeText');
+    const useCompleteBtn = document.getElementById('useCompleteBtn');
+    const closeQrModalBtn = document.getElementById('closeQrModalBtn');
+
+    confirmBtn.addEventListener('click', () => { isCombineMode = false; selectedTicketIds = []; renderWinningPage(); winningPage.style.display = 'block'; });
+    backToHomeBtn.addEventListener('click', () => { winningPage.style.display = 'none'; renderTickets(); });
+
+    function renderWinningPage() {
+      winningList.innerHTML = '';
+      if (winningTickets.length === 0) {
+        winningList.innerHTML = '<div class="empty-msg">当選しているくじ券はありません。</div>';
+        combineToggleBtn.style.display = 'none'; return;
+      }
+
+      combineToggleBtn.style.display = 'block';
+      winningTickets.forEach((ticket) => {
+        const amount = getTicketAmount(ticket);
+        const isSelected = selectedTicketIds.includes(ticket.id);
+        const card = document.createElement('div');
+        card.className = 'ticket-card'; card.style.alignItems = 'center';
+
+        let rightButtonHtml = !isCombineMode
+          ? `<button class="btn-check active" style="width: auto; padding: 8px 16px;" onclick="showSingleQr(${ticket.id})">使用する</button>`
+          : `<button class="btn-check" style="width: auto; padding: 8px 16px; background-color: ${isSelected ? '#22c55e' : '#9ca3af'};" onclick="toggleSelectTicket(${ticket.id})">${isSelected ? '✓ 選択中' : '選択'}</button>`;
+
+        card.innerHTML = `
+          <div class="ticket-left"><div class="ticket-name">${ticket.name}</div><div style="font-size: 14px; font-weight: bold; color: #ef4444; margin-top: 4px;">${amount}円 当選</div></div>
+          <div class="ticket-right" style="flex: 0; display: flex; justify-content: flex-end;">${rightButtonHtml}</div>
+        `;
+        winningList.appendChild(card);
+      });
+      updateCombineButtonText();
+    }
+
+    combineToggleBtn.addEventListener('click', () => {
+      if (!isCombineMode) { isCombineMode = true; selectedTicketIds = []; renderWinningPage(); }
+      else { if (selectedTicketIds.length === 0) { alert("まとめるくじ券を選択してください。"); return; } showCombinedQr(); }
+    });
+
+    window.toggleSelectTicket = function(id) {
+      const index = selectedTicketIds.indexOf(id);
+      if (index > -1) selectedTicketIds.splice(index, 1);
+      else selectedTicketIds.push(id);
+      renderWinningPage();
+    };
+
+    function updateCombineButtonText() {
+      if (!isCombineMode) {
+        combineToggleBtn.textContent = 'QRコードをまとめる'; combineToggleBtn.style.backgroundColor = '#3b82f6';
+      } else {
+        if (selectedTicketIds.length === 0) {
+          combineToggleBtn.textContent = 'まとめたいくじを選択してください'; combineToggleBtn.style.backgroundColor = '#6b7280';
+        } else {
+          combineToggleBtn.textContent = `◯ ${selectedTicketIds.length}枚選択中  QRコードを表示する`; combineToggleBtn.style.backgroundColor = '#ef4444';
+        }
+      }
+    }
+
+    window.showSingleQr = function(id) {
+      const ticket = winningTickets.find(t => t.id === id);
+      if (!ticket) return;
+      const amount = getTicketAmount(ticket);
+      currentDisplayTicketIds = [id];
+      openQrModal(`LUCKY_${amount}`, `${ticket.name} (${amount}円)`);
+    };
+
+    function showCombinedQr() {
+      const selected = winningTickets.filter(t => selectedTicketIds.includes(t.id));
+      let totalAmount = 0; selected.forEach(t => totalAmount += getTicketAmount(t));
+      currentDisplayTicketIds = [...selectedTicketIds];
+      openQrModal(`LUCKY_${totalAmount}`, `まとめ当選 (${selected.length}枚 / 合計${totalAmount}円)`);
+    }
+
+    function openQrModal(qrText, titleText) {
+      qrCodeText.textContent = qrText;
+      document.getElementById('qrModalTitle').textContent = titleText;
+      qrImage.src = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(qrText)}`;
+      qrDisplayModal.style.display = 'flex';
+    }
+
+    closeQrModalBtn.addEventListener('click', () => { qrDisplayModal.style.display = 'none'; });
+
+    useCompleteBtn.addEventListener('click', () => {
+      if (confirm("使用完了にして一覧から削除しますか？")) {
+        winningTickets = winningTickets.filter(t => !currentDisplayTicketIds.includes(t.id));
+        if (currentUser) {
+          localStorage.setItem(`myWinningTickets_${currentUser.name}`, JSON.stringify(winningTickets));
+        }
+        qrDisplayModal.style.display = 'none'; isCombineMode = false; selectedTicketIds = [];
+        renderWinningPage(); renderTickets();
+      }
+    });
+
+
+// 設定モーダルおよびサブモーダル関連の処理まとめ
+const settingsBtn = document.getElementById('settingsBtn');
+const settingsModal = document.getElementById('settingsModal');
+const closeSettingsModalBtn = document.getElementById('closeSettingsModalBtn');
+
+const userNameModal = document.getElementById('userNameModal');
+const openUserNameModalBtn = document.getElementById('openUserNameModalBtn');
+const closeUserNameModalBtn = document.getElementById('closeUserNameModalBtn');
+const newUserNameInput = document.getElementById('newUserNameInput');
+const changeUserNameBtn = document.getElementById('changeUserNameBtn');
+
+const passwordModal = document.getElementById('passwordModal');
+const openPasswordModalBtn = document.getElementById('openPasswordModalBtn');
+const closePasswordModalBtn = document.getElementById('closePasswordModalBtn');
+const currentPasswordInput = document.getElementById('currentPasswordInput');
+const newPasswordInput = document.getElementById('newPasswordInput');
+const confirmPasswordInput = document.getElementById('confirmPasswordInput');
+const changePasswordBtn = document.getElementById('changePasswordBtn');
+
+const soundSwitch = document.getElementById('soundSwitch');
+const clearHistoryBtn = document.getElementById('clearHistoryBtn');
+const resetAppBtn = document.getElementById('resetAppBtn');
+
+// メインの設定画面を開く・閉じる
+settingsBtn.addEventListener('click', () => {
+  settingsModal.style.display = 'flex';
+});
+closeSettingsModalBtn.addEventListener('click', () => {
+  settingsModal.style.display = 'none';
+});
+
+// ユーザー名変更モーダルの開閉
+openUserNameModalBtn.addEventListener('click', () => {
+  userNameModal.style.display = 'flex';
+});
+closeUserNameModalBtn.addEventListener('click', () => {
+  userNameModal.style.display = 'none';
+  newUserNameInput.value = '';
+});
+
+// パスワード変更モーダルの開閉
+openPasswordModalBtn.addEventListener('click', () => {
+  passwordModal.style.display = 'flex';
+});
+closePasswordModalBtn.addEventListener('click', () => {
+  passwordModal.style.display = 'none';
+  currentPasswordInput.value = '';
+  newPasswordInput.value = '';
+  confirmPasswordInput.value = '';
+});
+
+// エフェクト設定の読み込みと保存
+let soundEnabled = JSON.parse(localStorage.getItem('myAppSoundEnabled') ?? 'true');
+soundSwitch.checked = soundEnabled;
+soundSwitch.addEventListener('change', () => {
+  soundEnabled = soundSwitch.checked;
+  localStorage.setItem('myAppSoundEnabled', JSON.stringify(soundEnabled));
+});
+
+// パスワード変更処理
+changePasswordBtn.addEventListener('click', () => {
+  const currentPass = currentPasswordInput.value.trim();
+  const newPass = newPasswordInput.value.trim();
+  const confirmPass = confirmPasswordInput.value.trim();
+
+  if (!currentPass || !newPass || !confirmPass) {
+    alert("❌ すべてのパスワード欄を入力してください。");
+    return;
+  }
+  if (!currentUser) return;
+
+  if (currentPass !== currentUser.pass) {
+    alert("❌ 今のパスワードが間違っています。");
+    return;
+  }
+
+  if (newPass !== confirmPass) {
+    alert("❌ 新しいパスワードと確認用パスワードが一致しません。");
+    return;
+  }
+
+  let users = JSON.parse(localStorage.getItem('myAppUsers') || '[]');
+  const userIndex = users.findIndex(u => u.name === currentUser.name);
+  if (userIndex !== -1) {
+    users[userIndex].pass = newPass;
+    localStorage.setItem('myAppUsers', JSON.stringify(users));
+    currentUser.pass = newPass;
+    localStorage.setItem('myAppCurrentUser', JSON.stringify(currentUser));
+    alert("✅ パスワードを変更しました！");
+    currentPasswordInput.value = '';
+    newPasswordInput.value = '';
+    confirmPasswordInput.value = '';
+    passwordModal.style.display = 'none';
+  }
+});
+
+// ユーザー名変更処理
+changeUserNameBtn.addEventListener('click', () => {
+  const newName = newUserNameInput.value.trim();
+  if (!newName) {
+    alert("❌ 新しいユーザー名を入力してください。");
+    return;
+  }
+  if (!currentUser) return;
+
+  let users = JSON.parse(localStorage.getItem('myAppUsers') || '[]');
+  if (users.some(u => u.name === newName)) {
+    alert("❌ このユーザー名は既に使用されています。");
+    return;
+  }
+
+  const oldKey = currentUser.name;
+  const userKey = newName;
+
+  localStorage.setItem(`myKujiTickets_${userKey}`, localStorage.getItem(`myKujiTickets_${oldKey}`) || '[]');
+  localStorage.setItem(`myWinningTickets_${userKey}`, localStorage.getItem(`myWinningTickets_${oldKey}`) || '[]');
+  localStorage.setItem(`myHistoryTickets_${userKey}`, localStorage.getItem(`myHistoryTickets_${oldKey}`) || '[]');
+  localStorage.setItem(`myKujiPoints_${userKey}`, localStorage.getItem(`myKujiPoints_${oldKey}`) || '0');
+
+  localStorage.removeItem(`myKujiTickets_${oldKey}`);
+  localStorage.removeItem(`myWinningTickets_${oldKey}`);
+  localStorage.removeItem(`myHistoryTickets_${oldKey}`);
+  localStorage.removeItem(`myKujiPoints_${oldKey}`);
+
+  const userIndex = users.findIndex(u => u.name === oldKey);
+  if (userIndex !== -1) {
+    users[userIndex].name = newName;
+    localStorage.setItem('myAppUsers', JSON.stringify(users));
+  }
+
+  currentUser.name = newName;
+  localStorage.setItem('myAppCurrentUser', JSON.stringify(currentUser));
+  if (userNameEl) userNameEl.textContent = currentUser.name;
+
+  alert("✅ ユーザー名を変更しました！");
+  newUserNameInput.value = '';
+  userNameModal.style.display = 'none';
+  renderTickets();
+});
+
+// 履歴を全て削除
+clearHistoryBtn.addEventListener('click', () => {
+  if (confirm("⚠️ 本当に履歴を全て削除しますか？")) {
+    if (!currentUser) return;
+    historyTickets = [];
+    const userKey = currentUser.name;
+    localStorage.setItem(`myHistoryTickets_${userKey}`, JSON.stringify(historyTickets));
+    renderTickets();
+    alert("🗑️ 履歴を全て削除しました。");
+    settingsModal.style.display = 'none';
+  }
+});
+
+// データを初期化
+resetAppBtn.addEventListener('click', () => {
+  if (confirm("⚠️ 本当にデータを初期化しますか？（ポイント、くじ券、履歴がすべて消去されます）")) {
+    if (!currentUser) return;
+    const userKey = currentUser.name;
+   
+    localStorage.removeItem(`myKujiTickets_${userKey}`);
+    localStorage.removeItem(`myWinningTickets_${userKey}`);
+    localStorage.removeItem(`myHistoryTickets_${userKey}`);
+    localStorage.removeItem(`myKujiPoints_${userKey}`);
+
+    loadUserData();
+    renderTickets();
+    alert("🔄 データを初期化しました。");
+    settingsModal.style.display = 'none';
+  }
+}); 
+
+ // ==========================================
+  // ログインボーナス関連の処理（カウシェ風）
+  // ==========================================
+  const loginBonusModal = document.getElementById('loginBonusModal');
+  const closeLoginModalBtn = document.getElementById('closeLoginModalBtn');
+  const claimLoginBonusBtn = document.getElementById('claimLoginBonusBtn');
+
+  // 新しいポイント設定（1〜7日目）
+  const REWARD_POINTS = [100, 200, 400, 500, 600, 800, 1000];
+
+  function checkAndOpenLoginBonus(isManualOpen = false) {
+    if (!currentUser) return;
+    const userKey = currentUser.name;
+    const todayStr = new Date().toISOString().split('T')[0];
+   
+    let lastLoginDate = localStorage.getItem(`myLastLoginDate_${userKey}`);
+    let streakCount = parseInt(localStorage.getItem(`myLoginStreak_${userKey}`) || '0', 10);
+
+    if (isManualOpen || lastLoginDate !== todayStr) {
+      loginBonusModal.style.display = 'flex';
+      updateLoginBoardUI(streakCount, lastLoginDate === todayStr);
+    }
+  }
+
+  function updateLoginBoardUI(streakCount, alreadyClaimedToday) {
+    const steps = document.querySelectorAll('.login-step');
+   
+    steps.forEach((step, index) => {
+      const day = index + 1;
+      const circle = step.querySelector('.step-circle');
+     
+      // 既存のスタンプを消去
+      const oldStamp = circle.querySelector('.stamp-badge');
+      if (oldStamp) oldStamp.remove();
+
+      if (day <= streakCount) {
+        // 達成済みのマス（カウシェ風のピンクスタンプを被せる）
+        circle.style.background = '#f43f5e';
+        circle.style.borderColor = '#e11d48';
+       
+        const stamp = document.createElement('div');
+        stamp.className = 'stamp-badge';
+        stamp.style.cssText = 'position: absolute; width: 100%; height: 100%; border-radius: 50%; background: #ec4899; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px; font-weight: bold; transform: rotate(-12deg); border: 2px solid #ffffff; box-shadow: 0 2px 4px rgba(0,0,0,0.2);';
+        stamp.innerHTML = '<span>達成</span>';
+        circle.appendChild(stamp);
+      } else {
+        // 未達成のマス
+        if (day === 7) {
+          circle.style.background = '#fef2f2';
+          circle.style.borderColor = '#fca5a5';
+        } else {
+          circle.style.background = '#e2e8f0';
+          circle.style.borderColor = '#cbd5e1';
+        }
+      }
+    });
+
+    if (alreadyClaimedToday) {
+      claimLoginBonusBtn.textContent = "また明日♪";
+      claimLoginBonusBtn.style.backgroundColor = "#cbd5e1";
+      claimLoginBonusBtn.style.color = "#64748b";
+      claimLoginBonusBtn.style.boxShadow = "none";
+      claimLoginBonusBtn.disabled = true;
+    } else {
+      claimLoginBonusBtn.textContent = "今日のボーナスを受け取る";
+      claimLoginBonusBtn.style.backgroundColor = "#22c55e";
+      claimLoginBonusBtn.style.color = "white";
+      claimLoginBonusBtn.style.boxShadow = "0 4px 6px rgba(34, 197, 94, 0.2)";
+      claimLoginBonusBtn.disabled = false;
+    }
+  }
+
+  claimLoginBonusBtn.addEventListener('click', () => {
+    if (!currentUser) return;
+    const userKey = currentUser.name;
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    let streakCount = parseInt(localStorage.getItem(`myLoginStreak_${userKey}`) || '0', 10);
+    streakCount = (streakCount % 7) + 1; // 7日目の次は1日目に戻る
+
+    const earnedPoints = REWARD_POINTS[streakCount - 1];
+
+    let currentPoints = parseInt(localStorage.getItem(`myKujiPoints_${userKey}`) || '0', 10);
+    currentPoints += earnedPoints;
+
+    // 保存
+    userPoints = currentPoints;
+    localStorage.setItem(`myKujiPoints_${userKey}`, currentPoints);
+    localStorage.setItem(`myLoginStreak_${userKey}`, streakCount);
+    localStorage.setItem(`myLastLoginDate_${userKey}`, todayStr);
+
+    if (typeof soundEnabled !== 'undefined' && soundEnabled && typeof confetti === 'function') {
+      confetti({ particleCount: 100, spread: 70, origin: { y: 0.5 } });
+    }
+
+    alert(`🎉 ${streakCount}日目のログインボーナス！\n${earnedPoints}pt 獲得しました！`);
+   
+    updateLoginBoardUI(streakCount, true);
+    if (typeof renderTickets === 'function') renderTickets();
+  });
+
+  closeLoginModalBtn.addEventListener('click', () => {
+    loginBonusModal.style.display = 'none';
+  }); 
+
+ 
+
+    // 初期起動処理（順序保証）
+    checkAuth();
+    renderTickets();
+  </script>
+
+</body>
+</html> 
