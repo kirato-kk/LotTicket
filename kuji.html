@@ -839,7 +839,7 @@
       currentProcessingTicket = null;
     });
 
-   function addTicketFromCode(inputCode) {
+     function addTicketFromCode(inputCode) {
       let code = inputCode.trim();
       if (code.includes('code=')) code = code.split('code=')[1].split('&')[0];
       code = code.toUpperCase();
@@ -889,8 +889,12 @@
 
         const fullSubCode = `${currentPrefix}_${numStr}`;
 
-        // すでに所持しているか、または履歴や当選にないかも含めてチェック（現在の所持チケット一覧でチェック）
-        const isAlreadyExists = tickets.some(t => t.code === fullSubCode) || winningTickets.some(t => t.code === fullSubCode);
+        // ★「所持中」「当選リスト」「過去の当落選履歴」のすべてを対象に重複チェック
+        const isAlreadyExists =
+          tickets.some(t => t.code === fullSubCode) ||
+          winningTickets.some(t => t.code === fullSubCode) ||
+          historyTickets.some(h => `${Object.keys(ALLOWED_QR_CODES).find(key => ALLOWED_QR_CODES[key].name === h.name)}_${h.number}` === fullSubCode);
+
         if (isAlreadyExists) {
           alreadyExistsCount++;
           i++;
@@ -917,7 +921,6 @@
         renderTickets();
         return true;
       } else {
-        // すでに持っているコードが含まれていた場合
         if (alreadyExistsCount > 0) {
           alert("このQRコードはすでに使用しています！");
           return false;
