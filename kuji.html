@@ -839,7 +839,7 @@
       currentProcessingTicket = null;
     });
 
-    function addTicketFromCode(inputCode) {
+   function addTicketFromCode(inputCode) {
       let code = inputCode.trim();
       if (code.includes('code=')) code = code.split('code=')[1].split('&')[0];
       code = code.toUpperCase();
@@ -851,6 +851,7 @@
       }
 
       let addedCount = 0;
+      let alreadyExistsCount = 0;
       let errorMessages = [];
       let currentPrefix = null;
       let i = 0;
@@ -858,7 +859,6 @@
       while (i < parts.length) {
         let token = parts[i];
 
-        // トークンが有効なプレフィックス（SUMMER, NEKO等）かチェック
         if (ALLOWED_QR_CODES[token]) {
           currentPrefix = token;
           i++;
@@ -877,7 +877,6 @@
         const isValidNumber = /^\d{3}$/.test(numStr) && numInt >= 1 && numInt <= 999;
 
         if (!isValidNumber) {
-          // もし数字の位置に別のプレフィックスが来ている場合は切り替える
           if (ALLOWED_QR_CODES[token]) {
             currentPrefix = token;
             i++;
@@ -890,10 +889,10 @@
 
         const fullSubCode = `${currentPrefix}_${numStr}`;
 
-        // ★ 重複チェック：すでに同じくじ券・同じ番号が登録されていないか確認
+        // すでに所持しているか、または履歴や当選にないかも含めてチェック（現在の所持チケット一覧でチェック）
         const isAlreadyExists = tickets.some(t => t.code === fullSubCode) || winningTickets.some(t => t.code === fullSubCode);
         if (isAlreadyExists) {
-          errorMessages.push(`番号 ${numStr} (${ALLOWED_QR_CODES[currentPrefix].name}) は既に登録されています`);
+          alreadyExistsCount++;
           i++;
           continue;
         }
@@ -918,6 +917,12 @@
         renderTickets();
         return true;
       } else {
+        // すでに持っているコードが含まれていた場合
+        if (alreadyExistsCount > 0) {
+          alert("このQRコードはすでに使用しています！");
+          return false;
+        }
+
         if (errorMessages.length > 0) {
           alert(`追加できませんでした。\n${errorMessages.join('\n')}`);
         } else {
